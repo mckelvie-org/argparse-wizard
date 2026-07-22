@@ -16,7 +16,7 @@ from typing import BinaryIO, TextIO
 from typing_extensions import Never, Self
 
 from .cli_tree import CliTree
-from .commands import CliCommand
+from .commands import CliCommand, _call_maybe_async
 from .exceptions import CliError, CliExit
 
 __all__ = [
@@ -250,7 +250,7 @@ class CliBase(CliTree):
         await self.standard_predispatch()
         for c in commands:
             if c.pre_dispatch_handler is not None:
-                await c.pre_dispatch_handler()
+                await _call_maybe_async(c.pre_dispatch_handler)
 
     def tracebacks_enabled(self) -> bool:
         """Return True if tracebacks should be displayed on error, based on the --tb argument.
@@ -350,7 +350,7 @@ class CliBase(CliTree):
                     handler = cmd.handler
                     if handler is not None:
                         self.logger.debug(f"dispatching command: {cmd}")
-                        await handler()
+                        await _call_maybe_async(handler)
                 except CliExit as e:
                     rc = e.code
         except Exception as e:

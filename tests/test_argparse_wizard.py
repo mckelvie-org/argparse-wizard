@@ -106,6 +106,27 @@ class SampleCli(CliBase):
 
         return handler
 
+    @cli_command("Sync registration method, sync handler.")
+    def cmd_sync(self, cmd: CliCommand[Self]) -> OptCmdFunc:
+        def handler() -> None:
+            print("sync registration, sync handler")
+
+        return handler
+
+    @cli_command("Sync registration method, async handler.")
+    def cmd_sync_async(self, cmd: CliCommand[Self]) -> OptCmdFunc:
+        async def handler() -> None:
+            print("sync registration, async handler")
+
+        return handler
+
+    @cli_command("Async registration method, sync handler.")
+    async def cmd_async_sync(self, cmd: CliCommand[Self]) -> OptCmdFunc:
+        def handler() -> None:
+            print("async registration, sync handler")
+
+        return handler
+
     @cli_command("Sample CLI.")
     async def main(self, cmd: CliCommand[Self]) -> OptCmdFunc:
         return None
@@ -268,3 +289,24 @@ def test_run_rejects_call_from_within_running_loop() -> None:
 
     with pytest.raises(RuntimeError, match="running event loop"):
         asyncio.run(call_run_from_inside_a_loop())
+
+
+def test_sync_registration_sync_handler(tmp_path: Path) -> None:
+    out = tmp_path / "out.txt"
+    rc = run_cli(["-o", str(out), "sync"])
+    assert rc == 0
+    assert out.read_text() == "sync registration, sync handler\n"
+
+
+def test_sync_registration_async_handler(tmp_path: Path) -> None:
+    out = tmp_path / "out.txt"
+    rc = run_cli(["-o", str(out), "sync-async"])
+    assert rc == 0
+    assert out.read_text() == "sync registration, async handler\n"
+
+
+def test_async_registration_sync_handler(tmp_path: Path) -> None:
+    out = tmp_path / "out.txt"
+    rc = run_cli(["-o", str(out), "async-sync"])
+    assert rc == 0
+    assert out.read_text() == "async registration, sync handler\n"

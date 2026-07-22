@@ -4,9 +4,10 @@
 
 from __future__ import annotations
 
+import inspect
 from argparse import ArgumentParser, _SubParsersAction
-from collections.abc import Callable
-from typing import TYPE_CHECKING, Generic, Protocol, TypeAlias, TypeVar
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Generic, ParamSpec, Protocol, TypeAlias, TypeVar, cast
 
 if TYPE_CHECKING:
     from .cli_tree import CliTree
@@ -28,14 +29,31 @@ SubParsersAction: TypeAlias = "_SubParsersAction[_ArgumentParserT]"
 
 _CliTreeType = TypeVar("_CliTreeType", bound="CliTree")
 
+_T = TypeVar("_T")
+_P = ParamSpec("_P")
+
 CLI_MAIN_COMMAND_NAME: str = "<main>"
 """The special name of the top-level command, used for the main command in a CLI with subcommands."""
 
 
-class CmdFunc(Protocol):
-    """An async command handler. Captures cli/cmd from the enclosing @cli_command closure."""
+async def _call_maybe_async(func: Callable[_P, _T | Awaitable[_T]], *args: _P.args, **kwargs: _P.kwargs) -> _T:
+    """Call func(*args, **kwargs) and return its result, awaiting it first if func is async.
+       Lets registration methods, handlers, and pre-dispatch hooks be written as either a plain
+       `def` or an `async def` -- callers always `await _call_maybe_async(...)` and get the right
+       behavior either way, without needing to know or check which one func is.
+    """
+    result = func(*args, **kwargs)
+    if inspect.isawaitable(result):
+        return cast(_T, await result)
+    return result
 
-    async def __call__(self) -> None: ...
+
+class CmdFunc(Protocol):
+    """A command handler, which may be written as a plain function or a coroutine function.
+       Captures cli/cmd from the enclosing @cli_command closure.
+    """
+
+    def __call__(self) -> None | Awaitable[None]: ...
 
 
 OptCmdFunc: TypeAlias = "CmdFunc | None"
@@ -44,17 +62,20 @@ OptCmdFunc: TypeAlias = "CmdFunc | None"
 
 
 class CmdRegisterFunc(Protocol, Generic[_CliTreeType]):
-    """An async command registration function. Sets up a command's subparser and returns its handler."""
+    """A command registration function, which may be written as a plain function or a coroutine
+       function. Sets up a command's subparser and returns its handler.
+    """
 
-    async def __call__(self, __cli: _CliTreeType, __cmd: CliCommand[_CliTreeType]) -> OptCmdFunc: ...
+    def __call__(self, __cli: _CliTreeType, __cmd: CliCommand[_CliTreeType]) -> OptCmdFunc | Awaitable[OptCmdFunc]: ...
 
 
 class CmdPreDispatchFunc(Protocol):
-    """An async predispatch function. Captures cli/cmd from the enclosing @cli_command closure.
+    """A predispatch function, which may be written as a plain function or a coroutine function.
+       Captures cli/cmd from the enclosing @cli_command closure.
        Called in order from the root command to the leaf command before dispatch.
     """
 
-    async def __call__(self) -> None: ...
+    def __call__(self) -> None | Awaitable[None]: ...
 
 
 class CliCommandWrapper(Generic[_CliTreeType]):
@@ -139,7 +160,7 @@ class CliCommandWrapper(Generic[_CliTreeType]):
         return CliCommand(cli, self, i_source)
 
     async def __call__(self, cli: _CliTreeType, cmd: CliCommand[_CliTreeType]) -> OptCmdFunc:
-        return await self.register_func(cli, cmd)
+        return await _call_maybe_async(self.register_func, cli, cmd)
 
     def __set_name__(self, owner: type, name: str) -> None:
         if self._names is None:

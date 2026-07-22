@@ -2,7 +2,15 @@
 
 ## {{UNRELEASED}}
 
-- _Add release notes here._
+- Command registration methods and the handlers they return can now be written as plain `def`
+  functions, not just `async def` — sync and async can be freely mixed, per command, within the same
+  CLI. Most commands don't need `async` at all now; it's still there for the ones that do real I/O.
+- Added `CliTree`, a new base class that `CliBase` itself now extends — structural groundwork for
+  upcoming support for reusable, mountable command subtrees. No behavior change for existing
+  `CliBase` subclasses.
+- README substantially expanded: pre-dispatch hooks, group-only commands (registration methods that
+  return `None`), `--tb` and its debugger interop, and stdio redirection are now documented, along
+  with a friendlier overview and highlights.
 
 ## 1.0.0 (2026-07-22)
 

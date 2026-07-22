@@ -27,7 +27,9 @@
   via `self.orig_stdin`/`self.orig_stdout`, and `self.get_binary_stdin()`/`get_binary_stdout()`
   give binary-safe access to whichever stream is currently in effect.
 - `CliError`/`CliExit` for clean, exit-code-driven error handling instead of raw `sys.exit()` calls.
-- Fully async: commands and pre-dispatch hooks are `async def`, and the CLI is run with `asyncio.run(...)`.
+- Commands and pre-dispatch hooks are `async def`. Run the CLI with `cli.run()` and it drives that
+  internally via `asyncio.run(...)` for you — no `asyncio` import needed in your own code. Apps that
+  already have (or want to control) their own event loop can `await cli.async_run()` instead.
 - Fully typed (`py.typed`), works under `mypy --strict`.
 
 ## Installation
@@ -39,7 +41,6 @@ pip install argparse-wizard
 ## Quick Start
 
 ```python
-import asyncio
 import sys
 
 from typing_extensions import Self
@@ -66,7 +67,7 @@ class GreetCli(CliBase):
 
 
 def main() -> int:
-    return asyncio.run(GreetCli(sys.argv[1:])())
+    return GreetCli(sys.argv[1:]).run()
 
 
 if __name__ == "__main__":

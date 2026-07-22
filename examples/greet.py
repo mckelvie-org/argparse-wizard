@@ -13,7 +13,6 @@ Try it:
 
 from __future__ import annotations
 
-import asyncio
 import sys
 
 from typing_extensions import Self
@@ -58,7 +57,7 @@ class GreetCli(CliBase):
 
 
 def main(args: list[str] | None = None) -> int:
-    return asyncio.run(GreetCli(args)())
+    return GreetCli(args).run()
 
 
 if __name__ == "__main__":

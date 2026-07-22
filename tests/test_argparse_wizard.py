@@ -112,7 +112,7 @@ class SampleCli(CliBase):
 
 
 def run_cli(args: list[str]) -> int:
-    return asyncio.run(SampleCli(args, prog_name="sample")())
+    return SampleCli(args, prog_name="sample").run()
 
 
 def test_version_is_exposed() -> None:
@@ -253,3 +253,18 @@ def test_sync_context_manager_not_supported() -> None:
     cli = SampleCli([])
     with pytest.raises(RuntimeError), cli:
         pass
+
+
+def test_async_run_works_directly(tmp_path: Path) -> None:
+    out = tmp_path / "out.txt"
+    rc = asyncio.run(SampleCli(["-o", str(out), "hello"], prog_name="sample").async_run())
+    assert rc == 0
+    assert out.read_text() == "Hello, world!\n"
+
+
+def test_run_rejects_call_from_within_running_loop() -> None:
+    async def call_run_from_inside_a_loop() -> int:
+        return SampleCli(["hello"], prog_name="sample").run()
+
+    with pytest.raises(RuntimeError, match="running event loop"):
+        asyncio.run(call_run_from_inside_a_loop())

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import io
 import logging
 import os
@@ -344,7 +345,7 @@ class CliBase:
         raise RuntimeError("CliBase does not support synchronous context management; use 'async with' instead")
 
     async def __aenter__(self) -> Self:
-        """Async context manager entry. This context is used while processing the command, and is exited before returning from __call__.
+        """Async context manager entry. This context is used while processing the command, and is exited before returning from async_run().
            Captures the pre-redirection sys.stdin/sys.stdout as self.orig_stdin/self.orig_stdout.
            Override in subclasses to customize for cleanup; subclasses should call super().__aenter__() first.
         """
@@ -358,7 +359,7 @@ class CliBase:
         exc_value: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        """Async context manager exit. This context is used while processing the command, and is exited before returning from __call__.
+        """Async context manager exit. This context is used while processing the command, and is exited before returning from async_run().
            Closes any file opened for --input-file/--output-file and restores sys.stdin/sys.stdout.
            Override in subclasses to customize for cleanup. Subclasses should call super().__aexit__() to ensure that
            this restoration happens.
@@ -380,8 +381,37 @@ class CliBase:
         """Perform any pre-initialization setup before the parser is built. Override in subclasses to customize."""
         pass
 
-    async def __call__(self) -> int:
-        """Run the CLI. Returns exit code."""
+    def run(self) -> int:
+        """Run the CLI synchronously. Returns exit code.
+
+           This is the entry point for apps with no async code of their own: it drives async_run()
+           via asyncio.run() internally, so callers never need to touch asyncio themselves. It's the
+           right default even for apps whose command handlers happen to be async -- that's a
+           per-handler concern, not a per-entry-point one.
+
+           Do not call this from code that already has an event loop running (e.g. from inside an
+           async function, or in a Jupyter notebook); use 'await cli.async_run()' there instead.
+        """
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            pass  # no running loop -- safe to proceed
+        else:
+            raise RuntimeError(
+                "CliBase.run() cannot be called from within a running event loop "
+                "(e.g. from an async function, or in a Jupyter notebook). "
+                "Use 'await cli.async_run()' instead."
+            )
+        return asyncio.run(self.async_run())
+
+    async def async_run(self) -> int:
+        """Run the CLI. Returns exit code.
+
+           This is the entry point for apps that already have (or want to control) their own event
+           loop: call 'await cli.async_run()' from within a running loop, or wrap it yourself with
+           'asyncio.run(cli.async_run())'. Most apps should prefer run() instead, which does the
+           asyncio.run() wrapping for you.
+        """
         rc = 0
         tb = True
         try:

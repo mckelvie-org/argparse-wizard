@@ -2,6 +2,10 @@
 
 ## {{UNRELEASED}}
 
+- _Add release notes here._
+
+## 1.0.0 (2026-07-22)
+
 - Initial release: `CliBase`, a cleaner object-oriented alternative to hand-wiring `argparse`
   subparsers. Declare subcommands (including nested subcommands) as `@cli_command`-decorated async
   methods; command names and hierarchy are derived automatically from method names, or can be given

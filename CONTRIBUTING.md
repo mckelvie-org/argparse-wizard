@@ -20,9 +20,9 @@ new pending publisher** (use "pending" because the project won't exist there yet
 
 | Field | Value |
 |---|---|
-| PyPI project name | `arpgarse-wizard` *(or your fork's package name)* |
+| PyPI project name | `argparse-wizard` *(or your fork's package name)* |
 | Owner | `mckelvie-org` *(or your fork's GitHub owner) |
-| Repository | `arpgarse-wizard` |
+| Repository | `argparse-wizard` |
 | Workflow | `publish-test.yml` |
 | Environment | `testpypi` |
 
@@ -33,9 +33,9 @@ pending publisher**:
 
 | Field | Value |
 |---|---|
-| PyPI project name | `arpgarse-wizard` *(or your fork's package name)* |
+| PyPI project name | `argparse-wizard` *(or your fork's package name)* |
 | Owner | `mckelvie-org` *(or your fork's GitHub owner) |
-| Repository | `arpgarse-wizard` |
+| Repository | `argparse-wizard` |
 | Workflow | `publish.yml` |
 | Environment | `pypi` |
 

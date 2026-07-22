@@ -1,35 +1,84 @@
-# arpgarse-wizard
+# argparse-wizard
 
-[![CI](https://github.com/mckelvie-org/arpgarse-wizard/actions/workflows/ci.yml/badge.svg)](https://github.com/mckelvie-org/arpgarse-wizard/actions/workflows/ci.yml)
-[![PyPI version](https://img.shields.io/pypi/v/arpgarse-wizard.svg)](https://pypi.org/project/arpgarse-wizard/)
-[![Python versions](https://img.shields.io/pypi/pyversions/arpgarse-wizard.svg)](https://pypi.org/project/arpgarse-wizard/)
+[![CI](https://github.com/mckelvie-org/argparse-wizard/actions/workflows/ci.yml/badge.svg)](https://github.com/mckelvie-org/argparse-wizard/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/argparse-wizard.svg)](https://pypi.org/project/argparse-wizard/)
+[![Python versions](https://img.shields.io/pypi/pyversions/argparse-wizard.svg)](https://pypi.org/project/argparse-wizard/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-`arpgarse-wizard`: {Cleaner object-oriented argparse-driven command-line interfaces}
+`argparse-wizard`: Cleaner object-oriented argparse-driven command-line interfaces
 
 ## Highlights
 
-<!-- TODO: Brief list of package highlights -->
+- Declare subcommands (including nested subcommands) as decorated async methods on a `CliBase`
+  subclass instead of hand-wiring `argparse` subparsers. `CliBase` isn't generic, so subclasses are
+  just `class MyCli(CliBase):` — no `CliBase["MyCli"]` self-reference. Command methods spell out
+  their own CLI type with `typing.Self` (`cmd: CliCommand[Self]`), which stays correct even if
+  `MyCli` is further subclassed.
+- A command's `add_argument()` calls live in the same method as the handler that reads them back
+  off `self.args` — not in a separate parser-setup block you have to remember to keep in sync as
+  the handler evolves. Add, rename, or remove an argument and its usage in one place; there's no
+  second copy of the command's shape to drift out of sync with the first.
+- Command names and hierarchy are derived automatically from method names
+  (`cmd_test__list` → `test list`), or can be given explicitly.
+- Built-in `--log-level`, `--tb`, `--input-file`/`--output-file` handling: `-i`/`-o` actually
+  reopen `sys.stdin`/`sys.stdout` for the duration of the command, so plain `print()`/`input()`
+  and any library that inspects `sys.stdout` (colorizers, `rich`, ...) transparently honor the
+  redirection, the same way shell redirection would. The pre-redirection streams stay reachable
+  via `self.orig_stdin`/`self.orig_stdout`, and `self.get_binary_stdin()`/`get_binary_stdout()`
+  give binary-safe access to whichever stream is currently in effect.
+- `CliError`/`CliExit` for clean, exit-code-driven error handling instead of raw `sys.exit()` calls.
+- Fully async: commands and pre-dispatch hooks are `async def`, and the CLI is run with `asyncio.run(...)`.
+- Fully typed (`py.typed`), works under `mypy --strict`.
 
 ## Installation
 
 ```bash
-pip install json-data-types
+pip install argparse-wizard
 ```
-
-## Type Hierarchy
-
-<!-- TODO: Brief description of defined types -->
 
 ## Quick Start
 
 ```python
-from arpgarse_wizard import <!-- TODO: insert symbol;s to import -->
+import asyncio
+import sys
 
-<!-- TODO: brief example of usage -->
+from typing_extensions import Self
+
+from argparse_wizard import CliBase, CliCommand, CliError, OptCmdFunc, cli_command
+
+
+class GreetCli(CliBase):
+    @cli_command("Greet someone by name.")
+    async def cmd_hello(self, cmd: CliCommand[Self]) -> OptCmdFunc:
+        async def handler() -> None:
+            name: str = self.args.name
+            if not name:
+                raise CliError("--name must not be empty")
+            print(f"Hello, {name}!")
+
+        p = cmd.get_parser()
+        p.add_argument("--name", "-n", default="world")
+        return handler
+
+    @cli_command("Example CLI.")
+    async def main(self, cmd: CliCommand[Self]) -> OptCmdFunc:
+        return None  # no bare handler: a subcommand is required
+
+
+def main() -> int:
+    return asyncio.run(GreetCli(sys.argv[1:])())
+
+
+if __name__ == "__main__":
+    sys.exit(main())
 ```
 
-<!-- TODO: Add detailed documentation here -->
+```bash
+$ python greet.py hello --name Ada
+Hello, Ada!
+```
+
+See [examples/greet.py](examples/greet.py) for a fuller example with nested subcommands.
 
 ## Supported Python Versions
 

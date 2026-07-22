@@ -3,7 +3,7 @@ requires = ["pdm-backend>=2.4.0"]
 build-backend = "pdm.backend"
 
 [project]
-name = "arpgarse-wizard"
+name = "argparse-wizard"
 version = "0.0.0-dev.1"
 description = "Cleaner object-oriented argparse-driven command-line interfaces"
 readme = "README.md"
@@ -12,9 +12,11 @@ requires-python = ">=3.10"
 authors = [
   { name = "Sam McKelvie", email = "dev@mckelvie.org" },
 ]
-keywords = []
+keywords = ["argparse", "cli", "command-line", "subcommands", "asyncio"]
 classifiers = [
   "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Framework :: AsyncIO",
   "Intended Audience :: Developers",
   "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent",
@@ -27,13 +29,13 @@ classifiers = [
   "Topic :: Software Development :: Libraries :: Python Modules",
   "Typing :: Typed",
 ]
-dependencies = []
+dependencies = ["typing-extensions>=4.12.0"]
 
 [project.urls]
-Homepage = "https://github.com/mckelvie-org/arpgarse-wizard"
-Source = "https://github.com/mckelvie-org/arpgarse-wizard"
-"Bug Tracker" = "https://github.com/mckelvie-org/arpgarse-wizard/issues"
-Changelog = "https://github.com/mckelvie-org/arpgarse-wizard/releases"
+Homepage = "https://github.com/mckelvie-org/argparse-wizard"
+Source = "https://github.com/mckelvie-org/argparse-wizard"
+"Bug Tracker" = "https://github.com/mckelvie-org/argparse-wizard/issues"
+Changelog = "https://github.com/mckelvie-org/argparse-wizard/releases"
 
 [dependency-groups]
 dev = [
@@ -56,21 +58,21 @@ select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
 ignore = []
 
 [tool.ruff.lint.isort]
-known-first-party = ["arpgarse_wizard"]
+known-first-party = ["argparse_wizard"]
 
 [tool.mypy]
 python_version = "3.10"
 strict = true
-packages = ["arpgarse_wizard"]
+packages = ["argparse_wizard"]
 
 [tool.pdm]
 distribution = true
 
 [tool.pdm.build]
-includes = ["arpgarse_wizard"]
+includes = ["argparse_wizard"]
 
 [tool.pdm.scripts]
 test = "pytest"
 lint = "ruff check ."
-typecheck = "mypy arpgarse_wizard"
+typecheck = "mypy argparse_wizard"
 post_install = "./bin/post-install"

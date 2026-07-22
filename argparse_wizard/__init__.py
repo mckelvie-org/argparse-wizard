@@ -7,6 +7,7 @@ Cleaner object-oriented argparse-driven command-line interfaces
 from __future__ import annotations
 
 from .base import CliBase
+from .cli_tree import CliTree
 from .commands import (
     CLI_MAIN_COMMAND_NAME,
     CliCommand,
@@ -29,6 +30,7 @@ __all__ = [
     "CliCommandWrapper",
     "CliError",
     "CliExit",
+    "CliTree",
     "CmdFunc",
     "CmdPreDispatchFunc",
     "CmdRegisterFunc",

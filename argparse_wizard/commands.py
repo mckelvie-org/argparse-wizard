@@ -9,7 +9,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Generic, Protocol, TypeAlias, TypeVar
 
 if TYPE_CHECKING:
-    from .base import CliBase
+    from .cli_tree import CliTree
 
 __all__ = [
     "CLI_MAIN_COMMAND_NAME",
@@ -26,7 +26,7 @@ __all__ = [
 _ArgumentParserT = TypeVar("_ArgumentParserT", bound=ArgumentParser)
 SubParsersAction: TypeAlias = "_SubParsersAction[_ArgumentParserT]"
 
-_CliType = TypeVar("_CliType", bound="CliBase")
+_CliTreeType = TypeVar("_CliTreeType", bound="CliTree")
 
 CLI_MAIN_COMMAND_NAME: str = "<main>"
 """The special name of the top-level command, used for the main command in a CLI with subcommands."""
@@ -43,10 +43,10 @@ OptCmdFunc: TypeAlias = "CmdFunc | None"
    command has no bare handler (e.g. it exists only to group subcommands)."""
 
 
-class CmdRegisterFunc(Protocol, Generic[_CliType]):
+class CmdRegisterFunc(Protocol, Generic[_CliTreeType]):
     """An async command registration function. Sets up a command's subparser and returns its handler."""
 
-    async def __call__(self, __cli: _CliType, __cmd: CliCommand[_CliType]) -> OptCmdFunc: ...
+    async def __call__(self, __cli: _CliTreeType, __cmd: CliCommand[_CliTreeType]) -> OptCmdFunc: ...
 
 
 class CmdPreDispatchFunc(Protocol):
@@ -57,13 +57,13 @@ class CmdPreDispatchFunc(Protocol):
     async def __call__(self) -> None: ...
 
 
-class CliCommandWrapper(Generic[_CliType]):
+class CliCommandWrapper(Generic[_CliTreeType]):
     """Descriptor wrapping a CmdRegisterFunc; auto-registers itself via __set_name__.
        This is used to implement the @cli_command decorator.
        All state in this class is per-class; per-instance state is stored in CliCommand.
     """
 
-    register_func: CmdRegisterFunc[_CliType]
+    register_func: CmdRegisterFunc[_CliTreeType]
     """The wrapped function that sets up the command's subparser and returns its handler."""
 
     description: str
@@ -80,7 +80,7 @@ class CliCommandWrapper(Generic[_CliType]):
 
     def __init__(
         self,
-        func: CmdRegisterFunc[_CliType],
+        func: CmdRegisterFunc[_CliTreeType],
         description: str,
         *,
         name: str | list[str] | None = None,
@@ -134,11 +134,11 @@ class CliCommandWrapper(Generic[_CliType]):
     def is_main_command(self) -> bool:
         return self.name == CLI_MAIN_COMMAND_NAME
 
-    def create_instance(self, cli: _CliType, i_source: int) -> CliCommand[_CliType]:
+    def create_instance(self, cli: _CliTreeType, i_source: int) -> CliCommand[_CliTreeType]:
         """Create a CliCommand instance for this command, bound to the given CLI instance."""
         return CliCommand(cli, self, i_source)
 
-    async def __call__(self, cli: _CliType, cmd: CliCommand[_CliType]) -> OptCmdFunc:
+    async def __call__(self, cli: _CliTreeType, cmd: CliCommand[_CliTreeType]) -> OptCmdFunc:
         return await self.register_func(cli, cmd)
 
     def __set_name__(self, owner: type, name: str) -> None:
@@ -166,7 +166,7 @@ class CliCommandWrapper(Generic[_CliType]):
 
 def cli_command(
     description: str, *, name: str | None = None
-) -> Callable[[CmdRegisterFunc[_CliType]], CliCommandWrapper[_CliType]]:
+) -> Callable[[CmdRegisterFunc[_CliTreeType]], CliCommandWrapper[_CliTreeType]]:
     """Decorator factory: wraps a CmdRegisterFunc in a CliCommandWrapper.
        The description is used in the help message for the command.
        If name is provided, it will be used as the command name; otherwise the name will
@@ -174,22 +174,22 @@ def cli_command(
        with "cmd_", and sould use "__" to represent command keyword separators.
        If name containes spaces, it will be split into multiple keywords for subcommands."""
 
-    def decorator(func: CmdRegisterFunc[_CliType]) -> CliCommandWrapper[_CliType]:
+    def decorator(func: CmdRegisterFunc[_CliTreeType]) -> CliCommandWrapper[_CliTreeType]:
         return CliCommandWrapper(func, description, name=name)
 
     return decorator
 
 
-class CliCommand(Generic[_CliType]):
+class CliCommand(Generic[_CliTreeType]):
     """
     Per-cli-instance state for a CliCommand. This is used to store the parser and subparsers action for each command,
     and acts as a node in the command tree.
     """
 
-    cli: _CliType
+    cli: _CliTreeType
     """The CLI instance this command is bound to."""
 
-    wrapper: CliCommandWrapper[_CliType]
+    wrapper: CliCommandWrapper[_CliTreeType]
     """The per-class descriptor that created this command instance."""
 
     i_source: int
@@ -204,10 +204,10 @@ class CliCommand(Generic[_CliType]):
     """The command help message, used in the help message for the command. Initially None,
          but can be set per-instance if desired. If None, the description is used as the help message."""
 
-    parent_cmd: CliCommand[_CliType] | None = None
+    parent_cmd: CliCommand[_CliTreeType] | None = None
     """If this is a subcommand of another command, this is the parent command; otherwise None."""
 
-    children_cmds: list[CliCommand[_CliType]]
+    children_cmds: list[CliCommand[_CliTreeType]]
     """If this command has subcommands, this is the list of child commands; otherwise empty"""
 
     parser: ArgumentParser | None = None
@@ -225,7 +225,7 @@ class CliCommand(Generic[_CliType]):
        for pre-dispatch setup. This allows a parent command to provide commandline options that affect all subcommands.
     """
 
-    def __init__(self, cli: _CliType, wrapper: CliCommandWrapper[_CliType], i_source: int) -> None:
+    def __init__(self, cli: _CliTreeType, wrapper: CliCommandWrapper[_CliTreeType], i_source: int) -> None:
         """Create a new CliCommand descriptor for the given command."""
         self.cli = cli
         self.wrapper = wrapper

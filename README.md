@@ -10,26 +10,21 @@
 ## Highlights
 
 - Declare subcommands (including nested subcommands) as decorated async methods on a `CliBase`
-  subclass instead of hand-wiring `argparse` subparsers. `CliBase` isn't generic, so subclasses are
-  just `class MyCli(CliBase):` — no `CliBase["MyCli"]` self-reference. Command methods spell out
-  their own CLI type with `typing.Self` (`cmd: CliCommand[Self]`), which stays correct even if
-  `MyCli` is further subclassed.
+  subclass instead of hand-wiring `argparse` subparsers. Command names and hierarchy are derived
+  automatically from method names (`cmd_test__list` → `test list`), or can be given explicitly.
 - A command's `add_argument()` calls live in the same method as the handler that reads them back
   off `self.args` — not in a separate parser-setup block you have to remember to keep in sync as
-  the handler evolves. Add, rename, or remove an argument and its usage in one place; there's no
-  second copy of the command's shape to drift out of sync with the first.
-- Command names and hierarchy are derived automatically from method names
-  (`cmd_test__list` → `test list`), or can be given explicitly.
-- Built-in `--log-level`, `--tb`, `--input-file`/`--output-file` handling: `-i`/`-o` actually
-  reopen `sys.stdin`/`sys.stdout` for the duration of the command, so plain `print()`/`input()`
-  and any library that inspects `sys.stdout` (colorizers, `rich`, ...) transparently honor the
-  redirection, the same way shell redirection would. The pre-redirection streams stay reachable
-  via `self.orig_stdin`/`self.orig_stdout`, and `self.get_binary_stdin()`/`get_binary_stdout()`
-  give binary-safe access to whichever stream is currently in effect.
+  the handler evolves. Add, rename, or remove an argument and its usage in one place.
+- Built-in `--log-level`, `--tb`, `--input-file`/`--output-file` handling. `-i`/`-o` reopen
+  `sys.stdin`/`sys.stdout` for the duration of the command, so plain `print()`/`input()` and any
+  library that inspects `sys.stdout` (colorizers, `rich`, ...) transparently honor the redirection,
+  the same way shell redirection would. `self.orig_stdin`/`self.orig_stdout` reach the real
+  console/pipe regardless, and `get_binary_stdin()`/`get_binary_stdout()` give binary-safe access to
+  whichever stream is currently in effect.
 - `CliError`/`CliExit` for clean, exit-code-driven error handling instead of raw `sys.exit()` calls.
-- Commands and pre-dispatch hooks are `async def`. Run the CLI with `cli.run()` and it drives that
-  internally via `asyncio.run(...)` for you — no `asyncio` import needed in your own code. Apps that
-  already have (or want to control) their own event loop can `await cli.async_run()` instead.
+- Commands and pre-dispatch hooks are `async def`. Call `cli.run()` and it drives an event loop for
+  you — no `asyncio` import needed in your own code. Apps that already have (or want to control)
+  their own event loop can `await cli.async_run()` instead.
 - Fully typed (`py.typed`), works under `mypy --strict`.
 
 ## Installation
@@ -77,6 +72,31 @@ if __name__ == "__main__":
 ```bash
 $ python greet.py hello --name Ada
 Hello, Ada!
+```
+
+```bash
+$ python greet.py --help
+usage: greet.py [-h] [--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}] [--tb]
+                [--input-file INPUT_FILE] [--output-file OUTPUT_FILE]
+                COMMAND ...
+
+Example CLI.
+
+positional arguments:
+  COMMAND
+    hello               Greet someone by name.
+
+options:
+  -h, --help            show this help message and exit
+  --log-level, -l {DEBUG,INFO,WARNING,ERROR,CRITICAL}
+                        Logging level (default: WARNING).
+  --tb                  Display full traceback on error.
+  --input-file, -i INPUT_FILE
+                        Read from the given file instead of stdin. Reopens
+                        sys.stdin for the duration of the command.
+  --output-file, -o OUTPUT_FILE
+                        Write to the given file instead of stdout. Reopens
+                        sys.stdout for the duration of the command.
 ```
 
 See [examples/greet.py](examples/greet.py) for a fuller example with nested subcommands.

@@ -10,6 +10,7 @@ import io
 import logging
 import os
 import sys
+from collections.abc import Awaitable
 from types import TracebackType
 from typing import BinaryIO, TextIO
 
@@ -264,12 +265,15 @@ class CliBase(CliTree):
         raise RuntimeError("CliBase does not support synchronous context management; use 'async with' instead")
 
     async def __aenter__(self) -> Self:
-        """Async context manager entry. This context is used while processing the command, and is exited before returning from async_run().
-           Captures the pre-redirection sys.stdin/sys.stdout as self.orig_stdin/self.orig_stdout.
-           Override in subclasses to customize for cleanup; subclasses should call super().__aenter__() first.
+        """Async context manager entry, used internally by async_run(). Not meant to be overridden
+           directly -- override ctx_enter() instead. Captures the pre-redirection sys.stdin/
+           sys.stdout as self.orig_stdin/self.orig_stdout, then calls ctx_enter(): base setup runs
+           first, conventional for initialization in a subclass hierarchy, and there's no super()
+           chain for a subclass to get wrong since ctx_enter() is the only extension point.
         """
         self._orig_stdin = sys.stdin
         self._orig_stdout = sys.stdout
+        await _call_maybe_async(self.ctx_enter)
         return self
 
     async def __aexit__(
@@ -278,11 +282,14 @@ class CliBase(CliTree):
         exc_value: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        """Async context manager exit. This context is used while processing the command, and is exited before returning from async_run().
-           Closes any file opened for --input-file/--output-file and restores sys.stdin/sys.stdout.
-           Override in subclasses to customize for cleanup. Subclasses should call super().__aexit__() to ensure that
-           this restoration happens.
+        """Async context manager exit, used internally by async_run(). Not meant to be overridden
+           directly -- override ctx_exit() instead. Calls ctx_exit() first, then closes any file
+           opened for --input-file/--output-file and restores sys.stdin/sys.stdout -- the reverse
+           order from __aenter__, matching how nested context managers normally unwind (last
+           acquired, first released), so ctx_exit() still sees the environment exactly as the
+           command left it rather than already-restored state.
         """
+        await _call_maybe_async(self.ctx_exit, exc_type, exc_value, traceback)
         if self._opened_output_file is not None:
             try:
                 self._opened_output_file.close()
@@ -296,9 +303,61 @@ class CliBase(CliTree):
         sys.stdout = self.orig_stdout
         sys.stdin = self.orig_stdin
 
-    async def preinit(self) -> None:
-        """Perform any pre-initialization setup before the parser is built. Override in subclasses to customize."""
-        pass
+    def ctx_enter(self) -> None | Awaitable[None]:
+        """Override to run setup logic when the CLI starts processing a command -- the extension
+           point for __aenter__(). Called after the base class's own setup, so self.orig_stdin/
+           self.orig_stdout are already available if you need them. Can be a plain function or an
+           async function; no need to call super() or to know when the base class's own setup runs
+           relative to yours -- that ordering is fixed by __aenter__() itself.
+
+           Deliberately by design: this runs early, before preinit(), before arguments are parsed,
+           and before --input-file/--output-file redirection happens. self.args isn't available
+           yet, and anything you print here goes to the real console regardless of --output-file.
+           The reason is the same reason this hook exists at all -- __aenter__/__aexit__ wrap the
+           *entire* body of async_run(), including preinit() and argument parsing themselves, so
+           that ctx_exit() reliably runs for cleanup even if something fails during parsing, not
+           just during command dispatch. For setup that needs parsed arguments or should honor
+           redirection, use a command's pre_dispatch_handler instead (see
+           CliBase.perform_predispatch()), which runs after both.
+
+           Return type deliberately differs from the standard __enter__ convention: a real
+           __enter__ returns whatever value should bind to `with ... as x:`, but nothing ever binds
+           the result of ctx_enter() to anything, so unlike __enter__ there's nothing meaningful to
+           return -- whether you implement this as sync or async, the value produced is always None.
+        """
+        return None
+
+    def ctx_exit(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None | Awaitable[None]:
+        """Override to run cleanup logic when the CLI finishes processing a command -- the
+           extension point for __aexit__(). Called before the base class's own cleanup (closing any
+           redirected file, restoring sys.stdin/sys.stdout), so the environment still looks exactly
+           as it did during the command. Can be a plain function or an async function; no need to
+           call super().
+
+           The parameters match __aexit__'s so you can inspect whether (and how) the command
+           failed. But the return type deliberately differs from the standard __exit__ convention:
+           a real __exit__ can return a truthy value to suppress the propagating exception, but
+           ctx_exit()'s return value is always ignored -- there is no way to suppress an exception
+           from here, by design, so this always returns None. If you need to handle an exception
+           rather than just clean up after it, catch it inside your own command handling instead;
+           this hook is for cleanup, not error handling.
+        """
+        return None
+
+    def preinit(self) -> None | Awaitable[None]:
+        """Perform any pre-initialization setup before the parser is built. Override in subclasses
+           to customize. Can be a plain function or an async function.
+
+           Like ctx_enter() (which runs just before this), this is called before arguments are
+           parsed and before --input-file/--output-file redirection happens -- self.args isn't
+           available yet, and output goes to the real console regardless of --output-file.
+        """
+        return None
 
     def run(self) -> int:
         """Run the CLI synchronously. Returns exit code.
@@ -336,7 +395,7 @@ class CliBase(CliTree):
         try:
             async with self:
                 try:
-                    await self.preinit()
+                    await _call_maybe_async(self.preinit)
                     await self.init_parser()
                     args = self.parse_args()
                     tb = self.tracebacks_enabled()

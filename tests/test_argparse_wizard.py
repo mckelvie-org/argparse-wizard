@@ -8,6 +8,7 @@ import argparse
 import asyncio
 import sys
 from pathlib import Path
+from types import TracebackType
 
 import pytest
 from typing_extensions import Self
@@ -310,3 +311,115 @@ def test_async_registration_sync_handler(tmp_path: Path) -> None:
     rc = run_cli(["-o", str(out), "async-sync"])
     assert rc == 0
     assert out.read_text() == "async registration, sync handler\n"
+
+
+def test_ctx_enter_runs_after_base_setup_sync(capsys: pytest.CaptureFixture[str]) -> None:
+    # ctx_enter() runs inside __aenter__, before args are parsed and before --output-file
+    # redirection happens (that only happens later, inside perform_predispatch()) -- so it can
+    # rely on self.orig_stdout already being set, but its own output always goes to the real
+    # console, never to a redirected file. No -o here since redirection wouldn't apply to it
+    # anyway; this just proves ordering and orig_stdout availability via capsys.
+    class HookedCli(CliBase):
+        def ctx_enter(self) -> None:
+            print("ctx_enter", self.orig_stdout is not None)
+
+        @cli_command("main")
+        async def main(self, cmd: CliCommand[Self]) -> OptCmdFunc:
+            async def handler() -> None:
+                print("handler")
+
+            return handler
+
+    rc = HookedCli([]).run()
+    assert rc == 0
+    assert capsys.readouterr().out == "ctx_enter True\nhandler\n"
+
+
+def test_ctx_exit_runs_before_base_cleanup(tmp_path: Path) -> None:
+    out = tmp_path / "out.txt"
+
+    class HookedCli(CliBase):
+        def ctx_exit(
+            self,
+            exc_type: type[BaseException] | None,
+            exc_value: BaseException | None,
+            traceback: TracebackType | None,
+        ) -> None:
+            # If base cleanup (restoring sys.stdout) had already run, this would go to the
+            # real console instead of the redirected file.
+            print("ctx_exit")
+
+        @cli_command("main")
+        async def main(self, cmd: CliCommand[Self]) -> OptCmdFunc:
+            async def handler() -> None:
+                print("handler")
+
+            return handler
+
+    rc = HookedCli(["-o", str(out)]).run()
+    assert rc == 0
+    assert out.read_text() == "handler\nctx_exit\n"
+
+
+def test_ctx_enter_exit_and_preinit_can_be_async(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    # preinit()/ctx_enter() run before --output-file redirection (real console, via capsys);
+    # the handler and ctx_exit() run after (redirected file). Also confirms the ordering between
+    # ctx_enter() and preinit(): ctx_enter() runs first, since __aenter__ (async with self:) is
+    # entered before the first line inside the try block, which is where preinit() is called.
+    out = tmp_path / "out.txt"
+
+    class AsyncHookedCli(CliBase):
+        async def preinit(self) -> None:
+            print("preinit")
+
+        async def ctx_enter(self) -> None:
+            print("ctx_enter")
+
+        async def ctx_exit(
+            self,
+            exc_type: type[BaseException] | None,
+            exc_value: BaseException | None,
+            traceback: TracebackType | None,
+        ) -> None:
+            print("ctx_exit")
+
+        @cli_command("main")
+        async def main(self, cmd: CliCommand[Self]) -> OptCmdFunc:
+            async def handler() -> None:
+                print("handler")
+
+            return handler
+
+    rc = AsyncHookedCli(["-o", str(out)]).run()
+    assert rc == 0
+    assert capsys.readouterr().out == "ctx_enter\npreinit\n"
+    assert out.read_text() == "handler\nctx_exit\n"
+
+
+def test_ctx_exit_cannot_suppress_exception() -> None:
+    class SuppressingCli(CliBase):
+        # ctx_exit's return type (None | Awaitable[None]) already makes returning something
+        # meaningful a type error on its own -- mypy/pyright both reject `-> bool` here. This
+        # override deliberately breaks that contract (type: ignore) to prove even a bad-faith or
+        # buggy implementation can't suppress an exception at runtime either.
+        def ctx_exit(  # type: ignore[override]
+            self,
+            exc_type: type[BaseException] | None,
+            exc_value: BaseException | None,
+            traceback: TracebackType | None,
+        ) -> bool:
+            return True  # must be ignored -- ctx_exit cannot suppress exceptions
+
+        @cli_command("Trigger a bug.")
+        async def cmd_boom(self, cmd: CliCommand[Self]) -> OptCmdFunc:
+            async def handler() -> None:
+                raise ValueError("kaboom")
+
+            return handler
+
+        @cli_command("main")
+        async def main(self, cmd: CliCommand[Self]) -> OptCmdFunc:
+            return None
+
+    rc = SuppressingCli(["boom"]).run()
+    assert rc == 1

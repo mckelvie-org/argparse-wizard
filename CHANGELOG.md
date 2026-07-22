@@ -2,7 +2,18 @@
 
 ## {{UNRELEASED}}
 
-- _Add release notes here._
+- Added `ctx_enter()`/`ctx_exit()` as the recommended extension points for setup/cleanup around a
+  command's execution, replacing direct `__aenter__`/`__aexit__` overrides. Both can be plain `def`
+  or `async def`, and the base class's own setup/cleanup always wraps them in the conventional order
+  (base first on entry, base last on exit), so a subclass never needs to call `super()` or reason
+  about ordering. `ctx_exit()` cannot suppress an exception — by design, its return value is always
+  ignored, unlike a real `__exit__` — it's for cleanup, not error handling.
+- `preinit()` can now also be a plain `def`, not just `async def`.
+- Documented that `ctx_enter()`/`preinit()` intentionally run before argument parsing and before
+  `--input-file`/`--output-file` redirection (so `self.args` isn't available yet there, and their
+  output always goes to the real console) — that's what lets cleanup run reliably even if something
+  fails during parsing itself. Setup that needs parsed arguments or should honor redirection belongs
+  in a command's `pre_dispatch_handler` instead.
 
 ## 2.0.0 (2026-07-22)
 

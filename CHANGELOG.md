@@ -2,6 +2,10 @@
 
 ## {{UNRELEASED}}
 
+- _Add release notes here._
+
+## 2.0.0 (2026-07-22)
+
 - Command registration methods and the handlers they return can now be written as plain `def`
   functions, not just `async def` — sync and async can be freely mixed, per command, within the same
   CLI. Most commands don't need `async` at all now; it's still there for the ones that do real I/O.

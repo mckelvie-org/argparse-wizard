@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## {{UNRELEASED}}
+## 2.1.0 (2026-07-22)
 
 - Added `ctx_enter()`/`ctx_exit()` as the recommended extension points for setup/cleanup around a
   command's execution, replacing direct `__aenter__`/`__aexit__` overrides. Both can be plain `def`

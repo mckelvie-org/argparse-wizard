@@ -4,7 +4,7 @@ build-backend = "pdm.backend"
 
 [project]
 name = "argparse-wizard"
-version = "2.1.0-rc.1"
+version = "2.1.0"
 description = "Cleaner object-oriented argparse-driven command-line interfaces"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -14,7 +14,7 @@ authors = [
 ]
 keywords = ["argparse", "cli", "command-line", "subcommands", "asyncio"]
 classifiers = [
-  "Development Status :: 4 - Beta",
+  "Development Status :: 5 - Production/Stable",
   "Environment :: Console",
   "Framework :: AsyncIO",
   "Intended Audience :: Developers",
@@ -33,7 +33,7 @@ dependencies = ["typing-extensions>=4.12.0"]
 
 [project.urls]
 Homepage = "https://github.com/mckelvie-org/argparse-wizard"
-Source = "https://github.com/mckelvie-org/argparse-wizard/tree/v2.1.0-rc.1"
+Source = "https://github.com/mckelvie-org/argparse-wizard/tree/v2.1.0"
 "Bug Tracker" = "https://github.com/mckelvie-org/argparse-wizard/issues"
 Changelog = "https://github.com/mckelvie-org/argparse-wizard/releases"
 

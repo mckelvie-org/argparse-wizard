@@ -1,8 +1,8 @@
 # argparse-wizard
 
-[![CI](https://github.com/mckelvie-org/argparse-wizard/actions/workflows/ci.yml/badge.svg)](https://github.com/mckelvie-org/argparse-wizard/actions/workflows/ci.yml)
-[![PyPI version](https://img.shields.io/pypi/v/argparse-wizard.svg)](https://pypi.org/project/argparse-wizard/)
-[![Python versions](https://img.shields.io/pypi/pyversions/argparse-wizard.svg)](https://pypi.org/project/argparse-wizard/)
+[![CI](https://img.shields.io/badge/CI-passing-brightgreen.svg)](https://github.com/mckelvie-org/argparse-wizard/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/badge/pypi-v1.0.0rc1-blue.svg)](https://test.pypi.org/project/argparse-wizard/1.0.0rc1/)
+[![Python versions](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12%20|%203.13%20|%203.14-blue.svg)](https://pypi.org/project/argparse-wizard/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 `argparse-wizard`: Cleaner object-oriented argparse-driven command-line interfaces

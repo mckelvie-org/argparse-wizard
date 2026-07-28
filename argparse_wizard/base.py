@@ -165,7 +165,36 @@ class CliBase(CliTree):
     def parse_args(self) -> argparse.Namespace:
         """Parse the command-line arguments and return the namespace. If self.args is already set, return it."""
         if self._args is None:
-            self._args = self.get_main_parser().parse_args(self.raw_args)
+            parser = self.get_main_parser()
+            try:
+                self._args = parser.parse_args(self.raw_args)
+            except argparse.ArgumentError as e:
+                # The root parser is deliberately built with exit_on_error=False (see
+                # create_main_parser()), so that genuinely unexpected exceptions during parsing
+                # surface as real tracebacks -- at this point in async_run(), no --tb policy has
+                # been read yet, so there's no way to honor it either way. But argparse.ArgumentError
+                # specifically isn't unexpected -- it's argparse's own well-formed report of a
+                # user-facing usage mistake (bad choice, bad type, etc.), so it gets the same clean
+                # "usage: ...\nprog: error: message" treatment exit_on_error=True would have given it.
+                #
+                # Only the root parser needs this: subparsers (one per subcommand) are created via
+                # add_subparsers().add_parser(...), which doesn't inherit exit_on_error=False from
+                # the root, so they already get argparse's own default clean-error behavior and
+                # never raise ArgumentError up to here in the first place.
+                #
+                # Deliberately NOT calling parser.error() here: it prints this same usage+message
+                # but then calls sys.exit() directly, which run()/async_run() must never let
+                # happen -- they always return an exit code cleanly to the caller rather than
+                # abruptly terminating the process out from under it (the entire reason
+                # exit_on_error=False was used here rather than just accepting exit_on_error=True's
+                # sys.exit()). Catching the resulting SystemExit is also not an option -- so the
+                # usage+message output is reconstructed here instead, using only the public
+                # print_usage() plus argparse's own documented "%(prog)s: error: %(message)s"
+                # format, and CliExit is raised directly rather than routing through sys.exit() at
+                # all. async_run() already catches CliExit as a normal, clean `return rc`.
+                parser.print_usage(sys.stderr)
+                print(f"{parser.prog}: error: {e}", file=sys.stderr)
+                raise CliExit(2) from e
         return self._args
 
     def get_logging_format(self) -> str:

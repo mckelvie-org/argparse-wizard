@@ -2,7 +2,13 @@
 
 ## {{UNRELEASED}}
 
-- _Add release notes here._
+- Fixed: a missing or unrecognized top-level subcommand (e.g. running a CLI with no arguments at
+  all, or an invalid `COMMAND` value) used to crash with a raw, unhandled `argparse.ArgumentError`
+  traceback — regardless of `--tb`, since that flag hadn't even been read yet at that point.
+  `parse_args()` now catches that specific error for the root parser and reports the same clean
+  `usage: ...` / `prog: error: ...` text `argparse` itself would have printed, exiting cleanly with
+  code `2` instead. Errors within subcommands were never affected by this — they already got
+  `argparse`'s normal clean-error behavior.
 
 ## 2.1.0 (2026-07-22)
 

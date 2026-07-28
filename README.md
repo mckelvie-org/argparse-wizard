@@ -203,6 +203,54 @@ seeding...
 The hook only runs once, right before dispatch, regardless of how deep the subcommand that was
 actually invoked is nested underneath it.
 
+### Reliable setup and cleanup
+
+Override `ctx_enter()`/`ctx_exit()` for setup and cleanup that should wrap the *entire* run — not
+just one command, but everything from before argument parsing through dispatch, whether the command
+succeeds, fails, or raises. `ctx_exit()` runs even when a handler raises, so it's the place for
+things like releasing a lock or tearing down a resource, guaranteed to happen no matter how the
+command turned out:
+
+```python
+class WorkspaceCli(CliBase):
+    def ctx_enter(self) -> None:
+        print("acquiring workspace lock...")
+
+    def ctx_exit(self, exc_type, exc_value, traceback) -> None:
+        print("releasing workspace lock")
+
+    @cli_command("Do something that might fail.")
+    def cmd_go(self, cmd: CliCommand[Self]) -> OptCmdFunc:
+        def handler() -> None:
+            raise CliError("something went wrong")
+        return handler
+```
+
+```bash
+$ python workspace.py go
+acquiring workspace lock...
+releasing workspace lock
+Error: something went wrong
+```
+
+`ctx_exit()`'s lock release still runs even though the command failed — and it runs before the
+failure is reported, since cleanup happens as the command's context is exited, before control
+returns to whatever prints the final error. Both methods can be plain
+functions or `async def`, freely mixed like everything else — and there's no `super()` to remember:
+the base class's own setup always runs before `ctx_enter()`, and its own cleanup always runs after
+`ctx_exit()`, so ordering is never something a subclass has to reason about. `ctx_exit()`'s
+parameters match `__aexit__`'s, so you can inspect whether (and how) the command failed, but unlike
+a real `__exit__`, its return value is always ignored — there's no way to suppress an exception from
+here. If you need to handle a failure rather than just clean up after it, do that inside your own
+command handling instead.
+
+One consequence of wrapping the *entire* run: `ctx_enter()` executes before arguments are parsed and
+before `--input-file`/`--output-file` redirection happens, so `self.args` isn't available yet, and
+anything it prints goes to the real console regardless of `--output-file`. That's what makes cleanup
+reliable even if something goes wrong during parsing itself — but it also means `ctx_enter()` isn't
+the right place for setup that depends on a parsed argument or should honor redirection. Use a
+pre-dispatch hook for that instead, since those run after both.
+
 ### Redirecting input and output
 
 `--input-file`/`--output-file` (and their short forms `-i`/`-o`) reopen `sys.stdin`/`sys.stdout` for

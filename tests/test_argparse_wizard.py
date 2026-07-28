@@ -4,7 +4,6 @@ General pytest tests for this package.
 
 from __future__ import annotations
 
-import argparse
 import asyncio
 import sys
 from pathlib import Path
@@ -175,11 +174,28 @@ def test_group_command_without_subcommand_fails() -> None:
         run_cli(["test"])
 
 
-def test_no_subcommand_at_all_fails() -> None:
-    # The top-level parser is created with exit_on_error=False, so a missing
-    # required subcommand raises ArgumentError instead of calling sys.exit.
-    with pytest.raises(argparse.ArgumentError):
-        run_cli([])
+def test_no_subcommand_at_all_fails(capsys: pytest.CaptureFixture[str]) -> None:
+    # The top-level parser is created with exit_on_error=False (see create_main_parser()), but
+    # CliBase.parse_args() catches argparse.ArgumentError specifically and reports the same
+    # "usage: ...\nprog: error: ..." argparse itself would have -- via CliExit, not sys.exit(),
+    # so run() still returns an int cleanly rather than raising. Contrast with a missing
+    # subcommand at a deeper level (test_group_command_without_subcommand_fails), which is a
+    # subparser's own default exit_on_error=True behavior (untouched by this) and does still
+    # raise SystemExit.
+    rc = run_cli([])
+    assert rc == 2
+    captured = capsys.readouterr()
+    assert "error: the following arguments are required: COMMAND" in captured.err
+
+
+def test_invalid_top_level_subcommand_fails_cleanly(capsys: pytest.CaptureFixture[str]) -> None:
+    # Same mechanism as test_no_subcommand_at_all_fails, but for an unrecognized COMMAND value
+    # rather than a missing one -- the original bug report scenario.
+    rc = run_cli(["bogus-command"])
+    assert rc == 2
+    captured = capsys.readouterr()
+    assert "invalid choice: 'bogus-command'" in captured.err
+    assert "Traceback" not in captured.err
 
 
 def test_cli_error_sets_exit_code_and_prints_message(capsys: pytest.CaptureFixture[str]) -> None:

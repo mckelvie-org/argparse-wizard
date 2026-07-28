@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## {{UNRELEASED}}
+## 2.1.2 (2026-07-28)
 
 - Fixed: a missing or unrecognized top-level subcommand (e.g. running a CLI with no arguments at
   all, or an invalid `COMMAND` value) used to crash with a raw, unhandled `argparse.ArgumentError`
